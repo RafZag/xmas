@@ -1,39 +1,65 @@
 import { Point2D } from './point2D.js';
+import { GUI } from 'https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/lil-gui.module.min.js';
+import Stats from 'https://cdn.skypack.dev/three@0.132.0/examples/jsm/libs/stats.module.js';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
-ctx.imageSmoothingQuality = 'high';
+
+/////////////// Listeners
 
 window.addEventListener('resize', onWindowResize);
 
+/////////////// Params
+
 let rot = 0;
 let starPoints = [];
+let targetPoints = [];
+
+const params = {
+  steps: 25,
+};
+
+/////////////// GUI
+
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
+const gui = new GUI();
+gui.add(params, 'steps', 0, 50, 1);
+
+/////////////// Init
 
 buildStar();
+buildTargetShape();
 onWindowResize();
 draw();
 
 function draw() {
-  ctx.fillStyle = '#f1f1f1';
+  // ctx.fillStyle = '#f1f1f1';
+  ctx.fillStyle = '#d20b12';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  //   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawShape(canvas.width / 2, canvas.height / 2, rot);
-  //   rot += 0.1;
+  blendShapes(starPoints, targetPoints, params.steps);
+  rot += 0.1;
   window.requestAnimationFrame(draw);
+  stats.update();
 }
 
-function onWindowResize() {
-  var dpr = window.devicePixelRatio || 1;
-  // Get the size of the canvas in CSS pixels.
-  var rect = canvas.getBoundingClientRect();
-  // Give the canvas pixel dimensions of their CSS
-  // size * the device pixel ratio.
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-  //   ctx.scale(dpr, dpr);
+function blendShapes(arr, targetArr, steps) {
+  drawShape(canvas.width / 2, canvas.height / 2, rot, arr, 0);
+  drawShape(canvas.width / 2, canvas.height / 2, rot, targetArr, 1);
+
+  for (let i = 1; i < steps; i++) {
+    let tmpArr = [];
+    for (let j = 0; j < arr.length; j++) {
+      let p = new Point2D();
+      p = Point2D.interpolate(arr[j], targetArr[j], (1 / steps) * i);
+      tmpArr.push(p);
+    }
+    drawShape(canvas.width / 2, canvas.height / 2, rot, tmpArr, i / steps);
+  }
 }
 
-function drawShape(x, y, r) {
+function drawShape(x, y, r, shapeArray, smooth) {
   ctx.lineCap = 'round';
   ctx.lineWidth = 1;
   ctx.save();
@@ -41,30 +67,25 @@ function drawShape(x, y, r) {
   ctx.rotate((-90 * Math.PI) / 180);
 
   ctx.beginPath();
-  let xc = (starPoints[starPoints.length - 1].x + starPoints[0].x) / 2;
-  let yc = (starPoints[starPoints.length - 1].y + starPoints[0].y) / 2;
-  ctx.moveTo(xc, yc);
 
-  for (let i = 0; i < starPoints.length - 1; i++) {
-    let xc1 = (starPoints[i].x + starPoints[i + 1].x) / 2;
-    let yc1 = (starPoints[i].y + starPoints[i + 1].y) / 2;
-    ctx.quadraticCurveTo(starPoints[i].x, starPoints[i].y, xc1, yc1);
+  let midP1 = Point2D.midPoint(shapeArray[shapeArray.length - 1], shapeArray[0], smooth);
+  ctx.moveTo(midP1.x, midP1.y);
+
+  for (let i = 0; i < shapeArray.length - 1; i++) {
+    let midP2 = Point2D.midPoint(shapeArray[i], shapeArray[i + 1], smooth);
+    ctx.quadraticCurveTo(shapeArray[i].x, shapeArray[i].y, midP2.x, midP2.y);
   }
-  xc = (starPoints[starPoints.length - 1].x + starPoints[0].x) / 2;
-  yc = (starPoints[starPoints.length - 1].y + starPoints[0].y) / 2;
-  ctx.quadraticCurveTo(starPoints[starPoints.length - 1].x, starPoints[starPoints.length - 1].y, xc, yc);
+
+  let midP3 = Point2D.midPoint(shapeArray[shapeArray.length - 1], shapeArray[0], smooth);
+  ctx.quadraticCurveTo(shapeArray[shapeArray.length - 1].x, shapeArray[shapeArray.length - 1].y, midP3.x, midP3.y);
 
   ctx.stroke();
-
-  for (let i = 0; i < starPoints.length; i++) {
-    starPoints[i].drawPoint(ctx);
-  }
   ctx.restore();
 }
 
 function buildStar() {
-  const arms = 7;
-  const size = 100;
+  const arms = 5;
+  const size = 75;
   const step = (2 * Math.PI) / (2 * arms);
 
   for (let i = 0; i < arms * 2; i++) {
@@ -81,20 +102,44 @@ function buildStar() {
     starPoints.push(tmpPoint);
   }
   console.log(starPoints);
-
-  randomize();
 }
 
-function randomize() {
-  for (let i = 0; i < starPoints.length; i++) {
-    starPoints[i].x += Math.random() * 50;
-    starPoints[i].y += Math.random() * 50;
+function buildTargetShape() {
+  const arms = 5;
+  const size = 600;
+  const step = (2 * Math.PI) / (2 * arms);
+
+  for (let i = 0; i < arms * 2; i++) {
+    let tmpPoint = new Point2D();
+
+    const x = size * Math.cos(step * i);
+    const y = size * Math.sin(step * i);
+
+    tmpPoint.x = x;
+    tmpPoint.y = y;
+
+    targetPoints.push(tmpPoint);
+  }
+
+  randomize(targetPoints);
+}
+
+function randomize(arr) {
+  for (let i = 0; i < arr.length; i++) {
+    arr[i].x += (Math.random() - 0.5) * 800;
+    arr[i].y += (Math.random() - 0.5) * 800;
   }
 }
 
-function midPoint(p1, p2) {
-  let midPoint = new Point2D();
-  midPoint.x = (p1.x + p2.x) / 2;
-  midPoint.y = (p1.y + p2.y) / 2;
-  return midPoint;
+/////////////// Event handlers
+
+function onWindowResize() {
+  var dpr = window.devicePixelRatio || 1;
+  // Get the size of the canvas in CSS pixels.
+  var rect = canvas.getBoundingClientRect();
+  // Give the canvas pixel dimensions of their CSS
+  // size * the device pixel ratio.
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  //   ctx.scale(dpr, dpr);
 }
