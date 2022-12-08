@@ -14,18 +14,57 @@ document.addEventListener('mousemove', onDocumentMouseMove, false);
 
 let time = 0;
 let starPoints = [];
-let targetPoints = [];
+let treePoints = [];
+let starTargetPoints = [];
+let treeTargetPoints = [];
 
 let mouseX = 0;
 let mouseY = 0;
 
+let showTree = false;
+
+let bgColor = '#d20b12';
+let safeBG = false;
+
+let displayScale = 1;
+
 const params = {
-  steps: 40,
-  noiseAmpl: 1000,
-  noiseSpeed: 10,
-  mouseWobble: 50,
+  starSteps: 35,
+  starNoiseAmpl: 770,
+  starNoiseSpeed: 40,
+  starScale: 1.2,
+  starTargetSize: 600,
+
+  treeSteps: 35,
+  treeNoiseAmpl: 770,
+  treeNoiseSpeed: 40,
+  treeScale: 1,
+  treeTargetSize: 650,
+
+  mouseWobble: 100,
   lineAlpha: 0.8,
+
+  switchShape: function () {
+    showTree = !showTree;
+    switchShape();
+  },
+
+  switchBG: function () {
+    safeBG = !safeBG;
+    if (safeBG) bgColor = '#f1f1f1';
+    else bgColor = '#d20b12';
+  },
 };
+
+function switchShape() {
+  if (showTree) {
+    starFolder.close();
+    treeFolder.open();
+  } else {
+    starFolder.open();
+    treeFolder.close();
+  }
+}
 
 /////////////// GUI
 
@@ -33,51 +72,94 @@ const stats = new Stats();
 document.body.appendChild(stats.dom);
 
 const gui = new GUI();
-gui.add(params, 'steps', 0, 50, 1);
-gui.add(params, 'noiseAmpl', 0, 1500, 1);
-gui.add(params, 'noiseSpeed', 0, 100, 1);
+
+gui.add(params, 'switchShape');
+
+const starFolder = gui.addFolder('Star');
+starFolder.add(params, 'starSteps', 0, 50, 1);
+starFolder.add(params, 'starNoiseAmpl', 0, 1500, 1);
+starFolder.add(params, 'starNoiseSpeed', 0, 100, 1);
+starFolder.add(params, 'starScale', 0.1, 2, 0.01);
+starFolder.add(params, 'starTargetSize', 100, 2000, 10).onChange(() => {
+  starTargetPoints = [];
+  buildStarTarget(params.starTargetSize);
+});
+
+const treeFolder = gui.addFolder('Tree');
+treeFolder.add(params, 'treeSteps', 0, 50, 1);
+treeFolder.add(params, 'treeNoiseAmpl', 0, 1500, 1);
+treeFolder.add(params, 'treeNoiseSpeed', 0, 100, 1);
+treeFolder.add(params, 'treeScale', 0.1, 2, 0.01);
+treeFolder.add(params, 'treeTargetSize', 100, 2000, 10).onChange(() => {
+  treeTargetPoints = [];
+  buildTreeTarget(params.treeTargetSize);
+});
+treeFolder.close();
+
 gui.add(params, 'mouseWobble', 0, 200, 1);
 gui.add(params, 'lineAlpha', 0, 1, 0.01);
-gui.close();
+gui.add(params, 'switchBG');
+// .onChange(() => {  ctx.scale(params.globalScale, params.globalScale);});
 
 /////////////// Init
 
 buildStar();
-buildTargetShape();
+buildTree();
+buildStarTarget(params.starTargetSize);
+buildTreeTarget(params.treeTargetSize);
 onWindowResize();
 draw();
 
 function draw() {
-  ctx.fillStyle = '#f1f1f1';
-  // ctx.fillStyle = '#d20b12';
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  time = (Date.now() * params.noiseSpeed) / 100000;
+
+  let shortSide;
+  if (canvas.width <= canvas.height) shortSide = canvas.width;
+  else shortSide = canvas.height;
+
+  displayScale = shortSide / 900;
+
   let tmpArr = [];
-  tmpArr = applyNoise(targetPoints, time, params.noiseAmpl);
-  blendShapes(starPoints, tmpArr, params.steps);
+
+  if (showTree) {
+    time = (Date.now() * params.treeNoiseSpeed) / 100000;
+    tmpArr = applyNoise(treeTargetPoints, time, params.treeNoiseAmpl);
+    blendShapes(treePoints, tmpArr, params.treeSteps, params.treeScale * displayScale);
+  } else {
+    time = (Date.now() * params.starNoiseSpeed) / 100000;
+    tmpArr = applyNoise(starTargetPoints, time, params.treeNoiseAmpl);
+    blendShapes(starPoints, tmpArr, params.starSteps, params.starScale * displayScale);
+  }
+
   window.requestAnimationFrame(draw);
   stats.update();
 }
 
-function blendShapes(arr, targetArr, steps) {
-  drawShape(canvas.width / 2 + mouseX * params.mouseWobble, canvas.height / 2 + mouseY * params.mouseWobble, arr, 0);
-  drawShape(canvas.width / 2, canvas.height / 2, targetArr, 1);
+function blendShapes(arr, targetArr, steps, scale) {
+  drawShape(canvas.width / 2 + mouseX * params.mouseWobble, canvas.height / 2 + mouseY * params.mouseWobble, scale, arr, 0);
+  // drawShape(canvas.width / 2, canvas.height / 2, scale, targetArr, 1);
 
   for (let i = 1; i < steps; i++) {
     let tmpArr = [];
     for (let j = 0; j < arr.length; j++) {
       let p = new Point2D();
       let tmpArrPoint = new Point2D();
-      tmpArrPoint.x = arr[j].x + mouseX * params.mouseWobble;
-      tmpArrPoint.y = arr[j].y + mouseY * params.mouseWobble;
-      p = Point2D.interpolate(tmpArrPoint, targetArr[j], (1 / steps) * i);
+      tmpArrPoint.x = arr[j].x * scale + mouseX * params.mouseWobble;
+      tmpArrPoint.y = arr[j].y * scale + mouseY * params.mouseWobble;
+
+      let tp = new Point2D();
+      tp.x = targetArr[j].x * scale;
+      tp.y = targetArr[j].y * scale;
+
+      p = Point2D.interpolate(tmpArrPoint, tp, (1 / steps) * i);
       tmpArr.push(p);
     }
-    drawShape(canvas.width / 2, canvas.height / 2, tmpArr, i / steps);
+    drawShape(canvas.width / 2, canvas.height / 2, 1, tmpArr, i / steps);
   }
 }
 
-function drawShape(x, y, shapeArray, smooth) {
+function drawShape(x, y, s, shapeArray, smooth) {
   ctx.lineCap = 'round';
   ctx.lineWidth = 1;
   ctx.save();
@@ -89,15 +171,15 @@ function drawShape(x, y, shapeArray, smooth) {
   ctx.strokeStyle = `rgba(0,0,0,${params.lineAlpha})`;
 
   let midP1 = Point2D.midPoint(shapeArray[shapeArray.length - 1], shapeArray[0], smooth);
-  ctx.moveTo(midP1.x, midP1.y);
+  ctx.moveTo(midP1.x * s, midP1.y * s);
 
   for (let i = 0; i < shapeArray.length - 1; i++) {
     let midP2 = Point2D.midPoint(shapeArray[i], shapeArray[i + 1], smooth);
-    ctx.quadraticCurveTo(shapeArray[i].x, shapeArray[i].y, midP2.x, midP2.y);
+    ctx.quadraticCurveTo(shapeArray[i].x * s, shapeArray[i].y * s, midP2.x * s, midP2.y * s);
   }
 
   let midP3 = Point2D.midPoint(shapeArray[shapeArray.length - 1], shapeArray[0], smooth);
-  ctx.quadraticCurveTo(shapeArray[shapeArray.length - 1].x, shapeArray[shapeArray.length - 1].y, midP3.x, midP3.y);
+  ctx.quadraticCurveTo(shapeArray[shapeArray.length - 1].x * s, shapeArray[shapeArray.length - 1].y * s, midP3.x * s, midP3.y * s);
 
   ctx.stroke();
   ctx.restore();
@@ -121,12 +203,11 @@ function buildStar() {
 
     starPoints.push(tmpPoint);
   }
-  // console.log(starPoints);
 }
 
-function buildTargetShape() {
+function buildStarTarget(s) {
   const arms = 5;
-  const size = 400;
+  const size = s;
   const step = (2 * Math.PI) / (2 * arms);
 
   for (let i = 0; i < arms * 2; i++) {
@@ -138,16 +219,53 @@ function buildTargetShape() {
     tmpPoint.x = x;
     tmpPoint.y = y;
 
-    targetPoints.push(tmpPoint);
+    starTargetPoints.push(tmpPoint);
   }
-
-  // randomize(targetPoints);
 }
 
-function randomize(arr) {
-  for (let i = 0; i < arr.length; i++) {
-    arr[i].x += (Math.random() - 0.5) * 800;
-    arr[i].y += (Math.random() - 0.5) * 800;
+function buildTree() {
+  let sc = 0.8;
+
+  treePoints.push(new Point2D(0, -320));
+  treePoints.push(new Point2D(94, -121));
+  treePoints.push(new Point2D(34, -121));
+  treePoints.push(new Point2D(134, 91));
+  treePoints.push(new Point2D(65, 91));
+  treePoints.push(new Point2D(174, 320));
+
+  treePoints.push(new Point2D(-174, 320));
+  treePoints.push(new Point2D(-65, 91));
+  treePoints.push(new Point2D(-134, 91));
+  treePoints.push(new Point2D(-34, -121));
+  treePoints.push(new Point2D(-94, -121));
+
+  for (let i = 0; i < treePoints.length; i++) {
+    treePoints[i].x = treePoints[i].x * sc;
+    treePoints[i].y = treePoints[i].y * sc;
+  }
+}
+
+function buildTreeTarget(s) {
+  const arms = 11;
+  const size = s;
+  const step = (2 * Math.PI) / arms;
+
+  let ratio = 1.2;
+
+  for (let i = 0; i < arms; i++) {
+    let tmpPoint = new Point2D();
+
+    const x = size * Math.cos(step * i - Math.PI / 2);
+    const y = size * Math.sin(step * i - Math.PI / 2);
+
+    tmpPoint.x = x;
+    tmpPoint.y = y;
+
+    treeTargetPoints.push(tmpPoint);
+  }
+
+  for (let i = 0; i < treeTargetPoints.length; i++) {
+    treeTargetPoints[i].x = treeTargetPoints[i].x * ratio;
   }
 }
 
