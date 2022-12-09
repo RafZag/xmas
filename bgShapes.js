@@ -53,7 +53,7 @@ const params = {
 
   switchBG: function () {
     safeBG = !safeBG;
-    if (safeBG) bgColor = '#f1f1f1';
+    if (safeBG) bgColor = '#ffffff';
     else bgColor = '#d20b12';
   },
 };
