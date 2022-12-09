@@ -1,6 +1,5 @@
 import { Point2D } from './point2D.js';
 import { GUI } from 'https://cdn.skypack.dev/three@0.137.0/examples/jsm/libs/lil-gui.module.min.js';
-import Stats from 'https://cdn.skypack.dev/three@0.132.0/examples/jsm/libs/stats.module.js';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -9,6 +8,7 @@ const ctx = canvas.getContext('2d', { alpha: false });
 
 window.addEventListener('resize', onWindowResize);
 document.addEventListener('mousemove', onDocumentMouseMove, false);
+document.addEventListener('keydown', onDocumentKeyDown);
 
 /////////////// Params
 
@@ -22,6 +22,7 @@ let mouseX = 0;
 let mouseY = 0;
 
 let showTree = false;
+let showGUI = false;
 
 let bgColor = '#d20b12';
 let safeBG = false;
@@ -31,18 +32,19 @@ let displayScale = 1;
 const params = {
   starSteps: 35,
   starNoiseAmpl: 770,
-  starNoiseSpeed: 40,
+  starNoiseSpeed: 30,
   starScale: 1.2,
   starTargetSize: 600,
 
   treeSteps: 35,
   treeNoiseAmpl: 770,
-  treeNoiseSpeed: 40,
+  treeNoiseSpeed: 30,
   treeScale: 1,
   treeTargetSize: 650,
 
   mouseWobble: 100,
   lineAlpha: 0.8,
+  lineWidth: 1.2,
 
   switchShape: function () {
     showTree = !showTree;
@@ -67,9 +69,6 @@ function switchShape() {
 }
 
 /////////////// GUI
-
-const stats = new Stats();
-document.body.appendChild(stats.dom);
 
 const gui = new GUI();
 
@@ -98,8 +97,10 @@ treeFolder.close();
 
 gui.add(params, 'mouseWobble', 0, 200, 1);
 gui.add(params, 'lineAlpha', 0, 1, 0.01);
+gui.add(params, 'lineWidth', 0, 5, 0.1);
 gui.add(params, 'switchBG');
-// .onChange(() => {  ctx.scale(params.globalScale, params.globalScale);});
+
+gui.show(showGUI);
 
 /////////////// Init
 
@@ -133,7 +134,6 @@ function draw() {
   }
 
   window.requestAnimationFrame(draw);
-  stats.update();
 }
 
 function blendShapes(arr, targetArr, steps, scale) {
@@ -161,7 +161,7 @@ function blendShapes(arr, targetArr, steps, scale) {
 
 function drawShape(x, y, s, shapeArray, smooth) {
   ctx.lineCap = 'round';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = params.lineWidth;
   ctx.save();
   ctx.translate(x, y);
   // ctx.rotate((-90 * Math.PI) / 180);
@@ -297,4 +297,16 @@ function onWindowResize() {
 function onDocumentMouseMove(event) {
   mouseX = (event.clientX / window.innerWidth) * 2 - 1;
   mouseY = (event.clientY / window.innerHeight) * 2 - 1;
+}
+
+function onDocumentKeyDown(e) {
+  switch (e.key) {
+    case ' ':
+      showGUI = !showGUI;
+      gui.show(showGUI);
+      break;
+    case 's':
+      showTree = !showTree;
+      break;
+  }
 }
